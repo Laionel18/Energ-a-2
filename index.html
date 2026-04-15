@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eco-Casa: Desafío de Energía</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* ================= ESTILOS GLOBALES ================= */
+        * {
+            box-sizing: border-box;
+            font-family: 'Press Start 2P', monospace;
+            user-select: none;
+        }
+        body {
+            background-color: #2b2b2b;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* ================= UI DEL JUEGO ================= */
+        #game-container {
+            width: 95%;
+            max-width: 800px;
+            background: #111;
+            border: 4px solid #fff;
+            position: relative;
+            overflow: hidden;
+            display: none; /* Oculto hasta que se inicie */
+        }
+        #header {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #333;
+            border-bottom: 4px solid #fff;
+            font-size: 12px;
+        }
+        .bar-container {
+            width: 150px;
+            height: 15px;
+            background: #555;
+            border: 2px solid #fff;
+            position: relative;
+        }
+        #energy-bar {
+            width: 0%;
+            height: 100%;
+            background: #ff3333;
+            transition: width 0.2s;
+        }
+
+        /* ================= LA CASA (3 ÁREAS) ================= */
+        #house {
+            display: flex;
+            flex-wrap: wrap;
+            height: 400px;
+        }
+        .room {
+            flex: 1;
+            min-width: 200px;
+            border-right: 4px solid #fff;
+            position: relative;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .room:last-child {
+            border-right: none;
+        }
+        /* Colores de las habitaciones */
+        #sala { background-color: #5c94ba; }
+        #cocina { background-color: #d69c51; }
+        #bano { background-color: #7b9e78; }
+
+        .room-title {
+            position: absolute;
+            top: 10px;
+            font-size: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+        }
+
+        /* ================= DISPOSITIVOS ================= */
+        .device {
+            width: 80px;
+            height: 80px;
+            background: #555; /* Apagado (Gris) */
+            border: 4px solid #222;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 10px;
+            transition: transform 0.1s;
+        }
+        .device:active {
+            transform: scale(0.95);
+        }
+        .device.on {
+            background: #ffcc00; /* Encendido (Amarillo) */
+            box-shadow: 0 0 15px #ffcc00;
+        }
+        
+        /* Indicador de NPC usándolo */
+        .npc-indicator {
+            position: absolute;
+            top: -30px;
+            font-size: 20px;
+            display: none;
+        }
+        .device.in-use .npc-indicator {
+            display: block;
+        }
+        /* Barra de uso del NPC */
+        .use-progress {
+            position: absolute;
+            bottom: -15px;
+            width: 100%;
+            height: 5px;
+            background: #222;
+            display: none;
+        }
+        .use-progress-fill {
+            height: 100%;
+            background: #00ff00;
+            width: 100%;
+        }
+        .device.in-use .use-progress {
+            display: block;
+        }
+
+        /* ================= PANTALLAS DE CARGA/FIN ================= */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 10;
+            border: 4px solid #fff;
+            max-width: 800px;
+            width: 95%;
+        }
+        button {
+            background: #4caf50;
+            color: white;
+            border: 4px solid #fff;
+            padding: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover { background: #45a049; }
+        .edu-message {
+            color: #ffcc00;
+            font-size: 12px;
+            line-height: 1.5;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 600px) {
+            #house { flex-direction: column; height: auto; }
+            .room { height: 200px; border-right: none; border-bottom: 4px solid #fff; }
+            .room:last-child { border-bottom: none; }
+            #header { flex-wrap: wrap; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen" class="screen">
+        <h1>Eco-Casa</h1>
+        <p style="font-size: 10px; line-height: 1.5; max-width: 600px;">
+            Objetivo: Mantén la energía baja durante 3 minutos.<br><br>
+            Los personajes (👤) usarán los aparatos. <br>
+            ¡NO los apagues mientras los usan!<br>
+            Apágalos cuando se vayan para ganar puntos y ahorrar.
+        </p>
+        <p id="loading-msg" class="edu-message"></p>
+        <button onclick="startGame()">JUGAR</button>
+    </div>
+
+    <div id="end-screen" class="screen" style="display: none;">
+        <h1 id="end-title"></h1>
+        <p id="end-score"></p>
+        <p id="end-reason" class="edu-message"></p>
+        <button onclick="resetGame()">VOLVER A JUGAR</button>
+    </div>
+
+    <div id="game-container">
+        <div id="header">
+            <div>⏱ <span id="time-display">03:00</span></div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                ⚡ Consumo: 
+                <div class="bar-container">
+                    <div id="energy-bar"></div>
+                </div>
+            </div>
+            <div>🏆 Pts: <span id="score-display">0</span></div>
+        </div>
+
+        <div id="house">
+            <div class="room" id="sala">
+                <div class="room-title">Sala de Estar</div>
+                <div class="device" id="dev-lamp" onclick="interactDevice('lamp')">
+                    <div class="npc-indicator">👤</div>
+                    Luz
+                    <div class="use-progress"><div class="use-progress-fill" id="prog-lamp"></div></div>
+                </div>
+            </div>
+            <div class="room" id="cocina">
+                <div class="room-title">Cocina</div>
+                <div class="device" id="dev-charger" onclick="interactDevice('charger')">
+                    <div class="npc-indicator">👤</div>
+                    Carga
+                    <div class="use-progress"><div class="use-progress-fill" id="prog-charger"></div></div>
+                </div>
+            </div>
+            <div class="room" id="bano">
+                <div class="room-title">Baño</div>
+                <div class="device" id="dev-bath" onclick="interactDevice('bath')">
+                    <div class="npc-indicator">👤</div>
+                    Luz
+                    <div class="use-progress"><div class="use-progress-fill" id="prog-bath"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- VARIABLES DEL JUEGO ---
+        let timeRemaining = 180; // 3 minutos
+        let energy = 0;
+        const MAX_ENERGY = 100;
+        let score = 0;
+        let gameInterval;
+        let spawnerInterval;
+        let isGameActive = false;
+
+        // Contexto de audio para los sonidos simples (sin archivos externos)
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        // --- DEFINICIÓN DE DISPOSITIVOS ---
+        const devices = {
+            lamp: { id: 'lamp', useTime: 3000, energyRate: 1.5, isOn: false, inUse: false, timer: null },
+            bath: { id: 'bath', useTime: 2000, energyRate: 2.0, isOn: false, inUse: false, timer: null },
+            charger: { id: 'charger', useTime: 10000, energyRate: 0.8, isOn: false, inUse: false, timer: null }
+        };
+
+        const eduMessages = [
+            "¿Sabías que? Desconectar cargadores evita el 'consumo fantasma'.",
+            "Apagar las luces innecesarias reduce tu huella de carbono.",
+            "La luz del baño suele quedar encendida por accidente. ¡Atento!",
+            "La energía no es infinita, usa solo lo que necesitas."
+        ];
+
+        // --- INICIALIZACIÓN ---
+        // Mostrar mensaje educativo aleatorio al inicio
+        document.getElementById("loading-msg").innerText = eduMessages[Math.floor(Math.random() * eduMessages.length)];
+
+        function startGame() {
+            // Reiniciar estado
+            timeRemaining = 180;
+            energy = 0;
+            score = 0;
+            isGameActive = true;
+            
+            // Reanudar contexto de audio (necesario en navegadores modernos)
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // Limpiar dispositivos
+            Object.keys(devices).forEach(key => {
+                devices[key].isOn = false;
+                devices[key].inUse = false;
+                clearTimeout(devices[key].timer);
+                updateDeviceUI(key);
+            });
+
+            document.getElementById("start-screen").style.display = "none";
+            document.getElementById("end-screen").style.display = "none";
+            document.getElementById("game-container").style.display = "block";
+
+            updateUI();
+            
+            // Iniciar loops
+            gameInterval = setInterval(gameLoop, 1000);
+            spawnerInterval = setInterval(spawnNPC, 2500); // Intenta crear un NPC cada 2.5s
+        }
+
+        // --- LOOP PRINCIPAL (Se ejecuta cada 1 segundo) ---
+        function gameLoop() {
+            if (!isGameActive) return;
+
+            timeRemaining--;
+
+            // Calcular aumento de energía basado en dispositivos encendidos
+            let energyIncrease = 0;
+            Object.values(devices).forEach(dev => {
+                if (dev.isOn) energyIncrease += dev.energyRate;
+            });
+            energy += energyIncrease;
+
+            updateUI();
+            checkEndConditions();
+        }
+
+        // --- SISTEMA DE GENERACIÓN DE EVENTOS (NPCs) ---
+        function spawnNPC() {
+            if (!isGameActive) return;
+
+            // Buscar dispositivos que NO estén encendidos ni en uso
+            const availableDevices = Object.values(devices).filter(d => !d.isOn && !d.inUse);
+            
+            if (availableDevices.length > 0) {
+                // Hay un 50% de probabilidad de que aparezca alguien si hay dispositivos libres
+                if (Math.random() > 0.5) {
+                    const dev = availableDevices[Math.floor(Math.random() * availableDevices.length)];
+                    activateDevice(dev.id);
+                }
+            }
+        }
+
+        function activateDevice(id) {
+            const dev = devices[id];
+            dev.isOn = true;
+            dev.inUse = true;
+            playSound(400, "square", 0.1); // Sonido de encendido
+            updateDeviceUI(id);
+            
+            // Animación CSS de la barra de progreso
+            const progBar = document.getElementById(`prog-${id}`);
+            progBar.style.transition = 'none';
+            progBar.style.width = '100%';
+            setTimeout(() => {
+                progBar.style.transition = `width ${dev.useTime}ms linear`;
+                progBar.style.width = '0%';
+            }, 50);
+
+            // Temporizador para que el NPC deje de usarlo
+            dev.timer = setTimeout(() => {
+                dev.inUse = false; // El NPC se va, pero el dispositivo queda ENCENDIDO
+                updateDeviceUI(id);
+            }, dev.useTime);
+        }
+
+        // --- INTERACCIÓN DEL JUGADOR ---
+        function interactDevice(id) {
+            if (!isGameActive) return;
+            const dev = devices[id];
+
+            if (dev.inUse) {
+                // PENALIZACIÓN: Interrumpió al NPC
+                score -= 15;
+                playSound(150, "sawtooth", 0.3); // Sonido de error
+                showFloatingText(`dev-${id}`, "-15 Pts!", "red");
+                
+                // Apaga forzosamente
+                dev.inUse = false;
+                dev.isOn = false;
+                clearTimeout(dev.timer);
+            } else if (dev.isOn) {
+                // RECOMPENSA: Apagó un dispositivo que el NPC dejó encendido
+                score += 10;
+                playSound(800, "sine", 0.1); // Sonido de éxito
+                showFloatingText(`dev-${id}`, "+10 Pts!", "green");
+                dev.isOn = false;
+            } else {
+                // Dispositivo ya está apagado, no hace nada o penaliza levemente
+                playSound(300, "triangle", 0.1);
+            }
+
+            updateUI();
+            updateDeviceUI(id);
+        }
+
+        // --- ACTUALIZACIÓN DE INTERFAZ ---
+        function updateUI() {
+            // Tiempo
+            let m = Math.floor(timeRemaining / 60);
+            let s = timeRemaining % 60;
+            document.getElementById("time-display").innerText = 
+                `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+            // Barra de Energía
+            let energyPercent = Math.min((energy / MAX_ENERGY) * 100, 100);
+            const eBar = document.getElementById("energy-bar");
+            eBar.style.width = energyPercent + "%";
+            // Cambiar color si está crítico
+            eBar.style.background = energyPercent > 75 ? "#ff0000" : (energyPercent > 50 ? "#ffcc00" : "#4caf50");
+
+            // Puntaje
+            document.getElementById("score-display").innerText = score;
+        }
+
+        function updateDeviceUI(id) {
+            const dev = devices[id];
+            const el = document.getElementById(`dev-${id}`);
+            
+            if (dev.isOn) el.classList.add("on");
+            else el.classList.remove("on");
+
+            if (dev.inUse) el.classList.add("in-use");
+            else el.classList.remove("in-use");
+        }
+
+        function showFloatingText(elementId, text, color) {
+            const parent = document.getElementById(elementId);
+            const floatEl = document.createElement("div");
+            floatEl.innerText = text;
+            floatEl.style.position = "absolute";
+            floatEl.style.color = color;
+            floatEl.style.fontWeight = "bold";
+            floatEl.style.zIndex = "100";
+            floatEl.style.animation = "floatUp 1s ease-out forwards";
+            
+            parent.appendChild(floatEl);
+            setTimeout(() => floatEl.remove(), 1000);
+        }
+
+        // Animación generada vía JS para no ensuciar el CSS principal
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `
+            @keyframes floatUp {
+                0% { transform: translateY(0); opacity: 1; }
+                100% { transform: translateY(-30px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+        // --- CONDICIONES DE VICTORIA / DERROTA ---
+        function checkEndConditions() {
+            if (energy >= MAX_ENERGY) {
+                endGame(false);
+            } else if (timeRemaining <= 0) {
+                endGame(true);
+            }
+        }
+
+        function endGame(isWin) {
+            isGameActive = false;
+            clearInterval(gameInterval);
+            clearInterval(spawnerInterval);
+
+            document.getElementById("game-container").style.display = "none";
+            const endScreen = document.getElementById("end-screen");
+            endScreen.style.display = "flex";
+
+            if (isWin) {
+                document.getElementById("end-title").innerText = "¡GANASTE!";
+                document.getElementById("end-title").style.color = "#4caf50";
+                document.getElementById("end-reason").innerText = "Lograste mantener un consumo responsable en casa.";
+            } else {
+                document.getElementById("end-title").innerText = "¡SOBRECARGA!";
+                document.getElementById("end-title").style.color = "#ff3333";
+                document.getElementById("end-reason").innerText = "La energía llegó al límite. ¡Recuerda apagar las cosas!";
+            }
+            document.getElementById("end-score").innerText = `Puntaje Final: ${score}`;
+        }
+
+        function resetGame() {
+            document.getElementById("start-screen").style.display = "flex";
+            document.getElementById("end-screen").style.display = "none";
+            document.getElementById("loading-msg").innerText = eduMessages[Math.floor(Math.random() * eduMessages.length)];
+        }
+
+        // --- SISTEMA BÁSICO DE AUDIO ---
+        function playSound(freq, type, vol) {
+            if(audioCtx.state === 'suspended') return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = type;
+            oscillator.frequency.value = freq;
+            
+            gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+    </script>
+</body>
+</html>
